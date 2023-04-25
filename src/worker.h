@@ -15,36 +15,41 @@
 #include "template.h"
 #include "log.h"
 
-typedef struct mining_worker_t {
-    uint32_t id;
+typedef struct mining_worker_t 
+    {
+    uint32_t            id;
 
-    int device_id;
-    cudaStream_t stream;
-    int grid_size;
-    int block_size;
-    union hasher {
-        inline_blake::blake3_hasher *inline_hasher;
-        ref_blake::blake3_hasher *ref_hasher;
-    };
+    int                 device_id;
+    cudaStream_t        stream;
+    int                 grid_size;
+    int                 block_size;
+    union hasher 
+        {
+        inline_blake::blake3_hasher 
+                       *inline_hasher;
+        ref_blake::blake3_hasher 
+                       *ref_hasher;
+        };
 
-    hasher host_hasher;
-    hasher device_hasher;
+    hasher              host_hasher;
+    hasher              device_hasher;
 
-    bool is_inline_miner;
+    bool                is_inline_miner;
 
-    std::atomic<bool> found_good_hash;
-    std::atomic<mining_template_t *> template_ptr;
+    std::atomic<bool>   found_good_hash;
+    std::atomic<mining_template_t *>
+                        template_ptr;
 
-    std::mt19937 random_gen;
+    std::mt19937        random_gen;
 
-    uv_async_t async;
-    uv_timer_t timer;
-} mining_worker_t;
+    uv_async_t          async;
+    uv_timer_t          timer;
+    } mining_worker_t;
 
 
-#define MINER_IMPL(worker) ((worker)->is_inline_miner ? inline_blake::blake3_hasher_mine:ref_blake::blake3_hasher_mine)
-#define HASHER(worker, host) ((host) ? (worker)->host_hasher:(worker)->device_hasher)
-#define HASHER_ELEM(hasher, is_inline, elem) ((is_inline) ? (hasher).inline_hasher->elem:(hasher).ref_hasher->elem)
+#define MINER_IMPL(worker)( (worker)->is_inline_miner ? inline_blake::blake3_hasher_mine : ref_blake::blake3_hasher_mine )
+#define HASHER(worker, host) ( ( host ) ? (worker)->host_hasher : (worker)->device_hasher )
+#define HASHER_ELEM( hasher, is_inline, elem ) ( ( is_inline ) ? (hasher).inline_hasher->elem : (hasher).ref_hasher->elem )
 
 
 // Helper methods

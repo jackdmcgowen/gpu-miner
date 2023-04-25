@@ -43,7 +43,7 @@ add_executable(gpu-miner src/main.cu)
 set_property(TARGET gpu-miner PROPERTY CXX_STANDARD 11)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v")
 target_compile_definitions(gpu-miner PUBLIC MINER_VERSION="${miner-version}")
-target_link_libraries(gpu-miner PRIVATE ${CONAN_LIBS})
+target_link_libraries(gpu-miner PRIVATE ${CONAN_LIBS} nvml.lib )
 #Copy binary to bin directory
 add_custom_command(TARGET gpu-miner
         POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gpu-miner> ${CMAKE_SOURCE_DIR}/bin)
@@ -51,7 +51,7 @@ add_custom_command(TARGET gpu-miner
 add_executable(blake3-test src/blake3.cu src/blake3/blake3-common.hpp)
 set_property(TARGET blake3-test PROPERTY CXX_STANDARD 11)
 target_compile_definitions(blake3-test PUBLIC BLAKE3_TEST)
-target_link_libraries(blake3-test PRIVATE ${CONAN_LIBS})
+target_link_libraries(blake3-test PRIVATE ${CONAN_LIBS} nvml.lib )
 #Copy binary to bin directory
 add_custom_command(TARGET blake3-test
         POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:blake3-test> ${CMAKE_SOURCE_DIR}/bin)

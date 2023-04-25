@@ -10,286 +10,452 @@
 
 #include "log.h"
 
-typedef struct blob_t {
+typedef struct blob_t 
+	{
     uint8_t *blob;
     ssize_t len;
-} blob_t;
+	} blob_t;
 
-void free_blob(blob_t *blob)
-{
-    free(blob->blob);
-}
+typedef struct job_t
+    {
+    int                 from_group;
+    int                 to_group;
+    blob_t              header_blob;
+    blob_t              txs_blob;
+    blob_t              target;
+    } job_t;
 
-char *bytes_to_hex(uint8_t *bytes, ssize_t len)
-{
-    ssize_t hex_len = 2 * len + 1;
-    char *hex_string = (char *)malloc(hex_len);
-    memset(hex_string, 0, hex_len);
+typedef struct jobs_t
+    {
+    job_t             **jobs;
+    size_t              len;
+    } jobs_t;
 
-    uint8_t *byte_cursor = bytes;
-    char *hex_cursor = hex_string;
-    ssize_t count = 0;
-    while (count < len) {
-        sprintf(hex_cursor, "%02x", *byte_cursor);
-        byte_cursor++;
-        count++;
-        hex_cursor += 2;
-    }
+typedef struct submit_result_t
+    {
+    int                 from_group;
+    int                 to_group;
+    bool                status;
+    } submit_result_t;
 
-    return hex_string;
-}
-
-void print_hex(const char* prefix, uint8_t *data, ssize_t nread)
-{
-    char *hex_string = bytes_to_hex(data, nread);
-    LOG("%s: %s\n", prefix, hex_string);
-    free(hex_string);
-}
-
-char hex_to_byte(char hex)
-{
-    if (hex >= '0' && hex <= '9') {
-        return hex - '0';
-    } else if (hex >= 'a' && hex <= 'f') {
-        return hex - 'a' + 10;
-    } else {
-        exit(1);
-    }
-}
-
-void hex_to_bytes(const char *hex_data, blob_t *buf)
-{
-    size_t hex_len = strlen(hex_data);
-    assert(hex_len % 2 == 0);
-
-    buf->len = hex_len / 2;
-    buf->blob = (uint8_t *)malloc(buf->len);
-    memset(buf->blob, 0, buf->len);
-
-    for (size_t pos = 0; pos < hex_len; pos += 2) {
-        char left = hex_to_byte(hex_data[pos]);
-        char right = hex_to_byte(hex_data[pos + 1]);
-        buf->blob[pos / 2] = (left << 4) + right;
-    }
-}
-
-typedef struct job_t {
-    int from_group;
-    int to_group;
-    blob_t header_blob;
-    blob_t txs_blob;
-    blob_t target;
-} job_t;
-
-void free_job(job_t *job) {
-    free_blob(&job->header_blob);
-    free_blob(&job->txs_blob);
-    free_blob(&job->target);
-    free(job);
-}
-
-typedef struct jobs_t {
-    job_t **jobs;
-    size_t len;
-} jobs_t;
-
-void free_jobs(jobs_t *jobs)
-{
-    for (size_t i = 0; i < jobs->len; i++) {
-        free_job(jobs->jobs[i]);
-    }
-    free(jobs->jobs);
-}
-
-typedef struct submit_result_t {
-    int from_group;
-    int to_group;
-    bool status;
-} submit_result_t;
-
-typedef enum server_message_kind {
+typedef enum server_message_kind
+    {
     JOBS,
     SUBMIT_RESULT,
-} server_message_kind;
+    } server_message_kind;
 
-typedef struct server_message_t {
-    server_message_kind kind;
-    union {
-        jobs_t *jobs;
-        submit_result_t *submit_result;
-    };
-} server_message_t;
+typedef struct server_message_t
+    {
+    server_message_kind     kind;
+    union
+        {
+        jobs_t             *jobs;
+        submit_result_t    *submit_result;
+        };
+    } server_message_t;
 
-void free_server_message_except_jobs(server_message_t *message)
+
+void free_blob
+	(
+	blob_t			   *blob
+	)
 {
-    switch (message->kind)
+free( blob->blob );
+
+}	/* free_blob() */
+
+
+char *bytes_to_hex
+	(
+	uint8_t			   *bytes, 
+	ssize_t				len
+	)
+{
+ssize_t					hex_len;
+char *					hex_string;
+uint8_t				   *byte_cursor;
+char				   *hex_cursor;
+ssize_t					count;
+
+hex_len = 2 * len + 1;
+hex_string = (char *)malloc( hex_len );
+memset( hex_string, 0, hex_len );
+byte_cursor = bytes;
+hex_cursor = hex_string;
+count = 0;
+
+while( count < len ) 
+	{
+    sprintf( hex_cursor, "%02x", *byte_cursor );
+    ++byte_cursor;
+    ++count;
+    hex_cursor += 2;
+	}
+
+return( hex_string );
+
+}	/* bytes_to_hex() */
+
+
+void print_hex
+	(
+	const char		   *prefix, 
+	uint8_t			   *data, 
+	ssize_t				nread
+	)
+{
+char *hex_string = bytes_to_hex( data, nread );
+LOG( "%s: %s\n", prefix, hex_string );
+free( hex_string );
+
+}	/* print_hex() */
+
+
+char hex_to_byte
+	(
+	char				hex
+	)
+{
+if( hex >= '0' && hex <= '9' ) 
+	{
+    return( hex - '0' );
+	} 
+else if( hex >= 'a' && hex <= 'f' )
+	{
+    return( hex - 'a' + 10 );
+	} 
+else 
+	{
+    exit( 1 );
+	}
+
+}	/* hex_to_byte() */
+
+
+void hex_to_bytes
+	(
+	const char         *hex_data, 
+    blob_t             *buf
+    )
+{
+size_t                  hex_len;
+size_t                  pos;
+    
+hex_len = strlen( hex_data );
+assert(hex_len % 2 == 0);
+
+buf->len = hex_len / 2;
+buf->blob = (uint8_t *)malloc( buf->len );
+memset( buf->blob, 0, buf->len );
+
+for( pos = 0; pos < hex_len; pos += 2 ) 
+    {
+    char                left;
+    char                right;
+    
+    left = hex_to_byte( hex_data[ pos ] );
+    right = hex_to_byte( hex_data[ pos + 1 ] );
+    buf->blob[ pos / 2 ] = ( left << 4 ) + right;
+    }
+
+}   /* hex_to_bytes() */
+
+
+void free_job
+    (
+    job_t *job
+    )
+{
+free_blob( &job->header_blob );
+free_blob( &job->txs_blob );
+free_blob( &job->target );
+free( job );
+
+}   /* free_job() */
+
+
+void free_jobs
+    (
+    jobs_t             *jobs
+    )
+{
+size_t                  i;
+
+for ( i = 0; i < jobs->len; ++i )
+    {
+    free_job( jobs->jobs[ i ] );
+    }
+free( jobs->jobs );
+
+}   /* free_jobs() */
+
+
+void free_server_message_except_jobs
+    (
+    server_message_t   *message
+    )
+{
+switch( message->kind )
     {
     case JOBS:
-        free(message->jobs->jobs);
-        free(message->jobs);
+        free( message->jobs->jobs );
+        free( message->jobs );
         break;
 
     case SUBMIT_RESULT:
-        free(message->submit_result);
+        free( message->submit_result );
         break;
     }
 
-    free(message);
-}
+free( message );
 
-void write_size(uint8_t **bytes, ssize_t size)
-{
-    (*bytes)[0] = (size >> 24) & 0xFF;
-    (*bytes)[1] = (size >> 16) & 0xFF;
-    (*bytes)[2] = (size >> 8) & 0xFF;
-    (*bytes)[3] = size & 0xFF;
-    *bytes = *bytes + 4;
-    return;
-}
+}   /* free_server_message_except_jobs() */
 
-ssize_t decode_size(uint8_t *bytes)
-{
-    return bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3];
-}
 
-ssize_t extract_size(uint8_t **bytes)
+void write_size
+    (
+    uint8_t           **bytes, 
+    ssize_t             size
+    )
 {
-    ssize_t size = decode_size(*bytes);
-    *bytes = *bytes + 4;
-    return size;
-}
+(*bytes)[0] = (size >> 24) & 0xFF;
+(*bytes)[1] = (size >> 16) & 0xFF;
+(*bytes)[2] = (size >> 8) & 0xFF;
+(*bytes)[3] = size & 0xFF;
+*bytes = *bytes + 4;
 
-void write_byte(uint8_t **bytes, uint8_t byte)
-{
-    (*bytes)[0] = byte;
-    *bytes = *bytes + 1;
-}
+}   /* write_size() */
 
-uint8_t extract_byte(uint8_t **bytes)
-{
-    uint8_t byte = **bytes;
-    *bytes = *bytes + 1;
-    return byte;
-}
 
-bool extract_bool(uint8_t **bytes)
+ssize_t decode_size
+    (
+    uint8_t            *bytes
+    )
 {
-    uint8_t byte = extract_byte(bytes);
-    switch (byte)
+return( bytes[ 0 ] << 24 | bytes[ 1 ] << 16 | bytes[ 2 ] << 8 | bytes[ 3 ] );
+
+}   /* decode_size() */
+
+
+ssize_t extract_size
+    (
+    uint8_t           **bytes
+    )
+{
+ssize_t                 size;
+    
+size = decode_size( *bytes );
+*bytes = *bytes + 4;
+return( size );
+
+}   /* extract_size() */
+
+
+void write_byte
+    (
+    uint8_t           **bytes, 
+    uint8_t             byte
+    )
+{
+(*bytes)[0] = byte;
+*bytes = *bytes + 1;
+
+}   /* write_byte() */
+
+
+uint8_t extract_byte
+    (
+    uint8_t           **bytes
+    )
+{
+uint8_t                 byte;
+    
+byte = **bytes;
+*bytes = *bytes + 1;
+return( byte );
+
+}   /* extract_byte() */
+
+
+bool extract_bool
+    (
+    uint8_t           **bytes
+    )
+{
+uint8_t                 byte;
+
+byte = extract_byte( bytes );
+switch( byte )
     {
     case 0:
-        return false;
+        return( false );
+
     case 1:
-        return true;
+        return( true );
+
     default:
-        LOGERR("Invaid bool value\n");
-        exit(1);
-    }
-}
-
-void write_bytes(uint8_t **bytes, uint8_t *data, ssize_t len)
-{
-    memcpy(*bytes, data, len);
-    *bytes = *bytes + len;
-}
-
-void write_blob(uint8_t **bytes, blob_t *blob)
-{
-    write_bytes(bytes, blob->blob, blob->len);
-}
-
-void extract_blob(uint8_t **bytes, blob_t *blob)
-{
-    ssize_t size = extract_size(bytes);
-    blob->len = size;
-    blob->blob = (uint8_t *)malloc(size * sizeof(uint8_t));
-    memcpy(blob->blob, *bytes, size);
-    *bytes = *bytes + size;
-
-    // LOG("blob: %ld\n", blob->len);
-    // LOG("%s\n", bytes_to_hex(blob->blob, blob->len));
-}
-
-void extract_job(uint8_t **bytes, job_t *job)
-{
-    job->from_group = extract_size(bytes);
-    job->to_group = extract_size(bytes);
-    // LOG("group: %d, %d\n", job->from_group, job->to_group);
-    extract_blob(bytes, &job->header_blob);
-    extract_blob(bytes, &job->txs_blob);
-    extract_blob(bytes, &job->target);
-}
-
-void extract_jobs(uint8_t **bytes, jobs_t *jobs)
-{
-    ssize_t jobs_size = extract_size(bytes);
-
-    // LOG("jobs: %ld\n", jobs_size);
-
-    jobs->len = jobs_size;
-    jobs->jobs = (job_t **)malloc(jobs_size * sizeof(job_t*));
-    for(ssize_t i = 0; i < jobs_size; i++) {
-        jobs->jobs[i] = (job_t *)malloc(sizeof(job_t));
-        extract_job(bytes, (jobs->jobs[i]));
-    }
-}
-
-void extract_submit_result(uint8_t **bytes, submit_result_t *result)
-{
-    result->from_group = extract_size(bytes);
-    result->to_group = extract_size(bytes);
-    result->status = extract_bool(bytes);
-}
-
-server_message_t *decode_server_message(blob_t *blob)
-{
-    uint8_t *bytes = blob->blob;
-    ssize_t len = blob->len;
-
-    if (len <= 4) {
-        return NULL; // not enough bytes for decoding
+        LOGERR( "Invaid bool value\n" );
+        exit( 1 );
     }
 
-    uint8_t *pos = bytes;
-    ssize_t message_size = extract_size(&pos);
-    assert(pos == bytes + 4);
+}   /* extract_bool() */
 
-    ssize_t message_byte_size = message_size + 4;
-    if (len < message_byte_size) {
-        return NULL; // not enough bytes for decoding
+
+void write_bytes
+    (
+    uint8_t           **bytes, 
+    uint8_t            *data, 
+    ssize_t             len
+    )
+{
+memcpy( *bytes, data, len );
+*bytes = *bytes + len;
+
+}   /* write_bytes() */
+
+
+void write_blob
+    (
+    uint8_t           **bytes, 
+    blob_t             *blob
+    )
+{
+write_bytes( bytes, blob->blob, blob->len );
+
+}   /* write_blob() */
+
+
+void extract_blob
+    (
+    uint8_t           **bytes, 
+    blob_t             *blob
+    )
+{
+ssize_t                 size;
+    
+size = extract_size( bytes );
+blob->len = size;
+blob->blob = (uint8_t *)malloc( size * sizeof(uint8_t) );
+memcpy( blob->blob, *bytes, size );
+*bytes = *bytes + size;
+
+}   /* extract_blob() */
+
+
+void extract_job
+    (
+    uint8_t           **bytes,
+    job_t              *job
+    )
+{
+job->from_group = (int)extract_size( bytes );
+job->to_group = (int)extract_size( bytes );
+extract_blob( bytes, &job->header_blob );
+extract_blob( bytes, &job->txs_blob );
+extract_blob( bytes, &job->target );
+
+}   /* extract_job() */
+
+
+void extract_jobs
+    (
+    uint8_t           **bytes,
+    jobs_t             *jobs
+    )
+{
+ssize_t                 jobs_size;
+ssize_t                 i;
+
+jobs_size = extract_size( bytes );
+
+jobs->len = jobs_size;
+jobs->jobs = (job_t **)malloc( jobs_size * sizeof(job_t *) );
+for( i = 0; i < jobs_size; ++i )
+    {
+    jobs->jobs[i] = (job_t *)malloc( sizeof(job_t) );
+    extract_job( bytes, jobs->jobs[i] );
     }
 
-    server_message_t *server_message = (server_message_t *)malloc(sizeof(server_message_t));
-    switch (extract_byte(&pos))
+}   /* extract_jobs() */
+
+
+void extract_submit_result
+    (
+    uint8_t           **bytes,
+    submit_result_t    *result
+    )
+{
+result->from_group = (int)extract_size( bytes );
+result->to_group = (int)extract_size( bytes );
+result->status = extract_bool( bytes );
+
+}   /* extract_submit_result() */
+
+
+server_message_t *decode_server_message
+    (
+    blob_t             *blob
+    )
+{
+uint8_t                *bytes;
+uint8_t                *pos;
+ssize_t                 len;
+ssize_t                 message_size;
+ssize_t                 message_byte_size;
+server_message_t       *server_message;
+
+bytes = blob->blob;
+len = blob->len;
+
+if( len <= 4 )
+    {
+    return( NULL ); // not enough bytes for decoding
+    }
+
+pos = bytes;
+message_size = extract_size( &pos );
+assert( pos == bytes + 4 );
+
+message_byte_size = message_size + 4;
+if( len < message_byte_size ) 
+    {
+    return( NULL ); // not enough bytes for decoding
+    }
+
+server_message = (server_message_t *)malloc( sizeof( server_message_t ) );
+switch( extract_byte( &pos ) )
     {
     case 0:
         server_message->kind = JOBS;
-        server_message->jobs = (jobs_t *)malloc(sizeof(jobs_t));
-        extract_jobs(&pos, server_message->jobs);
-
-        // LOG("%p, %p, %p\n", bytes, pos, bytes + len);
+        server_message->jobs = (jobs_t *)malloc( sizeof( jobs_t ) );
+        extract_jobs( &pos, server_message->jobs );
         break;
 
     case 1:
         server_message->kind = SUBMIT_RESULT;
-        server_message->submit_result = (submit_result_t *)malloc(sizeof(submit_result_t));
-        extract_submit_result(&pos, server_message->submit_result);
+        server_message->submit_result = (submit_result_t *)malloc( sizeof( submit_result_t ) );
+        extract_submit_result( &pos, server_message->submit_result );
         break;
 
     default:
-        LOGERR("Invalid server message kind\n");
-        exit(1);
+        LOGERR( "Invalid server message kind\n" );
+        exit( 1 );
     }
 
-    assert(pos == (bytes + message_byte_size));
-    if (message_byte_size < len) {
-        blob->len = len - message_byte_size;
-        memmove(blob->blob, pos, blob->len);
-    } else {
-        blob->len = 0;
+assert( pos == ( bytes + message_byte_size ) );
+
+if( message_byte_size < len )
+    {
+    blob->len = len - message_byte_size;
+    memmove( blob->blob, pos, blob->len );
+    }
+else 
+    {
+    blob->len = 0;
     }
 
-    return server_message;
-}
+return( server_message );
+
+}   /* decode_server_message() */
 
 #endif // ALEPHIUM_MESSAGE_H
