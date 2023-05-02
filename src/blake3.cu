@@ -88,6 +88,7 @@ sSMtoCores              nGpuArchCoresPerSM[] =
         { 0x75, 64 },
         { 0x80, 64 },
         { 0x86, 128 },
+        { 0x89, 128 },
         { -1, -1 }
     };
 int                     index;

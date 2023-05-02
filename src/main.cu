@@ -39,6 +39,7 @@
     #define MINER_VERSION "unknown"
 #endif  /* MINER_VERSION */
 
+#define NVML_SUPPORTED( call ) ( call == NVML_SUCCESS )
 #define NVML_CHECK( call )                                                                                                         \
     {                                                                                                                              \
         const nvmlReturn_t error = call;                                                                                           \
@@ -47,6 +48,7 @@
             LOGERR( "nvmlError %d (%s) calling '%s' (%s line %d)\n", error, nvmlErrorString( error ), #call, __FILE__, __LINE__ ); \
 			}                                                                                                                      \
     }
+
 
 /*--------------------------------------------------------------------
                               TYPES
@@ -66,6 +68,7 @@ typedef struct
     uint32_t            cclock;
     uint32_t            mclock;
     uint32_t            fan;
+    bool                fan_support;
     uint32_t            watts;
     float               eff;
     std::atomic<uint64_t>   
@@ -222,7 +225,7 @@ else
 
     start_worker_mining( worker );
 
-    duration_t elapsed = Time::now() - start;
+    //duration_t elapsed = Time::now() - start;
     // LOG("=== mining time: %fs\n", elapsed.count());
     }
 
@@ -473,7 +476,11 @@ if( current_time > start_time )
 
         NVML_CHECK( nvmlDeviceGetTemperature( devices[i].hnvml, NVML_TEMPERATURE_GPU, &devices[i].ctemp ) );
         NVML_CHECK( nvmlDeviceGetPowerUsage( devices[i].hnvml, &devices[i].watts ) );
-        NVML_CHECK( nvmlDeviceGetFanSpeed( devices[i].hnvml, &devices[i].fan ) );
+
+        if( devices[ i ].fan_support )
+            {
+            NVML_CHECK( nvmlDeviceGetFanSpeed( devices[i].hnvml, &devices[i].fan ) );
+            }
 
         devices[i].watts /= 1000; /* convert milliwatts to watts */
 
@@ -481,7 +488,7 @@ if( current_time > start_time )
         devices[i].eff = mh / devices[i].watts;
 
         LOG( "GPU #%d: %s - %.0f MH/s ", i, devices[i].name, mh );
-        LOG_WITHOUT_TS( "[ T:%dC, P:%dW, F:%d/%, E:%.1fMH/W ]\n", devices[i].ctemp, devices[i].watts, devices[i].fan, devices[i].eff );
+        LOG_WITHOUT_TS( "[ T:%dC, P:%dW, F:%d%%, E:%.1fMH/W ]\n", devices[i].ctemp, devices[i].watts, devices[i].fan, devices[i].eff );
         }
     LOG( "Hashrate: %.0f MH/s ", total_hashes.load() / elapsed.count() / 1000000 );
     LOG_WITHOUT_TS( "Solutions: %u\n", found_solutions.load( std::memory_order_relaxed ) );
@@ -793,6 +800,7 @@ for( i = 0; i < gpu_count; ++i )
     strcpy_s( devices[i].name, 64, prop.name );
 
     NVML_CHECK( nvmlDeviceGetHandleByIndex( i, &devices[i].hnvml ) );
+    devices[i].fan_support = NVML_SUPPORTED( nvmlDeviceGetFanSpeed( devices[i].hnvml, &devices[i].fan ) );
     //NVML_CHECK( nvmlDeviceGetClock( devices[i].hnvml, NVML_CLOCK_GRAPHICS, NVML_CLOCK_ID_CURRENT, &devices[i].cclock ) );
     //NVML_CHECK( nvmlDeviceGetClock( devices[i].hnvml, NVML_CLOCK_MEM,      NVML_CLOCK_ID_CURRENT, &devices[i].mclock ) );
     devices[i].use = true;

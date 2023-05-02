@@ -118,13 +118,22 @@ namespace inline_blake{
 #define Z6E 7
 #define Z6F D
 
-INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
+//INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
+//{
+//    return (w >> c) | (w << (32 - c));
+//}
+__device__ __forceinline__
+uint32_t ROTR32( uint32_t w, uint32_t c )
 {
-    return (w >> c) | (w << (32 - c));
-}
+uint32_t                result;
+
+asm volatile( "shf.r.clamp.b32 %0, %1, %1, %2;" : "=r"(result) : "r"(w), "r"(c) ); // (w << (32 - c) | ( w >> c )
+
+return( result );
+
+}   /* ROTR32() */
 
 #define G(a, b, c, d, x, y)    \
-    if (1)                     \
     {                          \
         a = a + b + x;         \
         d = ROTR32(d ^ a, 16); \
@@ -134,16 +143,15 @@ INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
         d = ROTR32(d ^ a, 8);  \
         c = c + d;             \
         b = ROTR32(b ^ c, 7);  \
-    }                          \
-    else                       \
-        ((void)0)
+    }
+    //else                       \
+    //    ((void)0)
 
 #define Mx(r, i) Mx_(Z##r##i)
 #define Mx_(n) Mx__(n)
 #define Mx__(n) M##n
 
 #define ROUND(r)                               \
-    if (1)                                     \
     {                                          \
         G(V0, V4, V8, VC, Mx(r, 0), Mx(r, 1)); \
         G(V1, V5, V9, VD, Mx(r, 2), Mx(r, 3)); \
@@ -153,12 +161,9 @@ INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
         G(V1, V6, VB, VC, Mx(r, A), Mx(r, B)); \
         G(V2, V7, V8, VD, Mx(r, C), Mx(r, D)); \
         G(V3, V4, V9, VE, Mx(r, E), Mx(r, F)); \
-    }                                          \
-    else                                       \
-        ((void)0)
+    }
 
 #define COMPRESS_PRE \
-    if (1)           \
     {                \
         V0 = H0;     \
         V1 = H1;     \
@@ -185,11 +190,8 @@ INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
         ROUND(5);    \
         ROUND(6);    \
     }                \
-    else             \
-        ((void)0)
 
 #define COMPRESS      \
-    if (1)            \
     {                 \
         COMPRESS_PRE; \
         H0 = V0 ^ V8; \
@@ -201,11 +203,8 @@ INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
         H6 = V6 ^ VE; \
         H7 = V7 ^ VF; \
     }                 \
-    else              \
-        ((void)0)
 
 #define HASH_BLOCK(r, blen, flags) \
-    if (1)                         \
     {                              \
         M0 = input[0x##r##0];          \
         M1 = input[0x##r##1];          \
@@ -227,8 +226,6 @@ INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
         FLAGS = (flags);           \
         COMPRESS;                  \
     }                              \
-    else                           \
-        ((void)0)
 
 typedef struct
 {
@@ -245,7 +242,6 @@ typedef struct
 } blake3_hasher;
 
 #define DOUBLE_HASH                             \
-    if (1)                                      \
     {                                           \
         H1 = IV_1;                              \
         H0 = IV_0;                              \
@@ -290,8 +286,6 @@ typedef struct
         FLAGS = CHUNK_START | CHUNK_END | ROOT; \
         COMPRESS;                               \
     }                                           \
-    else                                        \
-        ((void)0)
 
 #define UPDATE_NONCE                                        \
     if (1)                                                  \
