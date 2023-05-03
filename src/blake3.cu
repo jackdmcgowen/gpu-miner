@@ -16,6 +16,15 @@
 
 #ifdef BLAKE3_TEST
     #include <cuda_profiler_api.h>
+
+    /*--------------------------------------------------------------------
+     *
+     *  FUNCTION: main
+     *
+     *  DESCRIPTION:
+     *
+     *------------------------------------------------------------------*/
+
     int main
         (
         void
@@ -52,7 +61,14 @@
 #endif /* BLAKE3_TEST */
 
 
-// Beginning of GPU Architecture definitions
+/*--------------------------------------------------------------------
+ *
+ *  FUNCTION: get_sm_cores
+ *
+ *  DESCRIPTION:
+ *
+ *------------------------------------------------------------------*/
+
 inline int get_sm_cores
     (
     int                 major,
@@ -60,7 +76,7 @@ inline int get_sm_cores
     )
 {
 /*--------------------------------------------------------------------
- Defines for GPU Architecture types (using the SM version to determine
+ Defines for GPU Architecture types using the SM version to determine
  the # of cores per SM
 --------------------------------------------------------------------*/
 typedef struct
@@ -71,7 +87,7 @@ typedef struct
     int                 Cores;
     } sSMtoCores;
 
-sSMtoCores              nGpuArchCoresPerSM[] =
+const sSMtoCores        nGpuArchCoresPerSM[] =
     {
         { 0x30, 192 },
         { 0x32, 192 },
@@ -118,6 +134,14 @@ return( nGpuArchCoresPerSM[index - 1].Cores );
 }   /* get_sm_cores() */
 
 
+/*--------------------------------------------------------------------
+ *
+ *  FUNCTION: get_device_cores
+ *
+ *  DESCRIPTION:
+ *
+ *------------------------------------------------------------------*/
+
 int get_device_cores
     (
     int                 device_id
@@ -133,6 +157,14 @@ return( cores_size );
 
 }   /* get_device_cores() */
 
+
+/*--------------------------------------------------------------------
+ *
+ *  FUNCTION: config_cuda
+ *
+ *  DESCRIPTION:
+ *
+ *------------------------------------------------------------------*/
 
 void config_cuda
     (
@@ -150,7 +182,7 @@ cudaSetDevice( device_id );
 cudaGetDeviceProperties( &props, device_id );
 
     // If using a 2xxx or 3xxx card, use the new grid calc
-use_rtx_grid_bloc = ((props.major << 4) + props.minor) >= 0x75;
+use_rtx_grid_bloc = ( ( props.major << 4 ) + props.minor ) >= 0x75;
 
     // If compiling for windows, override the test and force the new calc
 #ifdef _WIN32
@@ -186,4 +218,4 @@ else
 
 }   /* config_cuda() */
 
-#endif // ALEPHIUM_BLAKE3_CU
+#endif /* ALEPHIUM_BLAKE3_CU */

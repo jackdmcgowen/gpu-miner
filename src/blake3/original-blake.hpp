@@ -360,8 +360,8 @@ __global__ void blake3_hasher_mine(void *global_hasher)
             return;
         }
     }
-    atomicAdd(&reinterpret_cast<blake3_hasher*>(global_hasher)->hash_count, hasher->hash_count);
+    atomicAdd( &reinterpret_cast<blake3_hasher*>( global_hasher )->hash_count, hasher->hash_count );
 }
-}
+}   /* ref_blake */
 
-#endif //ALEPHIUM_ORIGINAL_BLAKE_H
+#endif /* ALEPHIUM_ORIGINAL_BLAKE_H */

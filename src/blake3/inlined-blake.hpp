@@ -3,7 +3,8 @@
 
 #include "blake3-common.hpp"
 
-namespace inline_blake{
+namespace inline_blake
+{
 
 #define Z00 0
 #define Z01 1
@@ -118,10 +119,11 @@ namespace inline_blake{
 #define Z6E 7
 #define Z6F D
 
-//INLINE __device__ uint32_t ROTR32(uint32_t w, uint32_t c)
+//INLINE __device__ uint32_t ROTR32( uint32_t w, uint32_t c )
 //{
-//    return (w >> c) | (w << (32 - c));
+//    return ( w >> c ) | ( w << ( 32 - c ) );
 //}
+
 __device__ __forceinline__
 uint32_t ROTR32( uint32_t w, uint32_t c )
 {
@@ -372,37 +374,51 @@ typedef struct
     else                    \
         ((void)0)
 
-__global__ void blake3_hasher_mine(void *global_hasher)
+/*--------------------------------------------------------------------
+ *
+ *  FUNCTION: blake3_hasher_mine
+ *
+ *  DESCRIPTION:
+ *
+ *------------------------------------------------------------------*/
+
+__global__ void blake3_hasher_mine
+    (
+    void               *global_hasher
+    )
 {
-    blake3_hasher hasher = *reinterpret_cast<blake3_hasher*>(global_hasher);
-    uint32_t *input = (uint32_t *)hasher.buf;
-    uint32_t *target = (uint32_t *)hasher.target;
-    uint32_t target0 = target[0], target1 = target[1], target2 = target[2]; //, target3 = target[3], target4 = target[4], target5 = target[5], target6 = target[6], target7 = target[7];
-    uint32_t from_group = hasher.from_group, to_group = hasher.to_group;
-    uint32_t hash_count = 0;
+blake3_hasher hasher = *reinterpret_cast<blake3_hasher*>(global_hasher);
+uint32_t *input = (uint32_t *)hasher.buf;
+uint32_t *target = (uint32_t *)hasher.target;
+uint32_t target0 = target[0], target1 = target[1], target2 = target[2]; //, target3 = target[3], target4 = target[4], target5 = target[5], target6 = target[6], target7 = target[7];
+uint32_t from_group = hasher.from_group, to_group = hasher.to_group;
+uint32_t hash_count = 0;
 
-    uint32_t M0, M1, M2, M3, M4, M5, M6, M7, M8, M9, MA, MB, MC, MD, ME, MF; // message block
-    uint32_t V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF; // internal state
-    uint32_t H0, H1, H2, H3, H4, H5, H6, H7;                                 // chain value
-    uint32_t BLEN, FLAGS;                                                    // block len, flags
+uint32_t M0, M1, M2, M3, M4, M5, M6, M7, M8, M9, MA, MB, MC, MD, ME, MF; // message block
+uint32_t V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF; // internal state
+uint32_t H0, H1, H2, H3, H4, H5, H6, H7;                                 // chain value
+uint32_t BLEN, FLAGS;                                                    // block len, flags
 
-    int stride = blockDim.x * gridDim.x;
-    int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t *short_nonce = &input[0x00];
-    *short_nonce = (*short_nonce) / stride * stride + tid;
+int stride = blockDim.x * gridDim.x;
+int tid = threadIdx.x + blockIdx.x * blockDim.x;
+uint32_t *short_nonce = &input[0x00];
+*short_nonce = (*short_nonce) / stride * stride + tid;
 
-    while (hash_count < mining_steps)
+while( hash_count < mining_steps )
     {
-        hash_count += 1;
-        // printf("count: %u\n", hash_count);
-        *short_nonce += stride;
-        DOUBLE_HASH;
-        CHECK_POW;
-        cnt:;
+    ++hash_count;
+    // printf( "count: %u\n", hash_count );
+    *short_nonce += stride;
+    DOUBLE_HASH;
+    CHECK_POW;
+
+    cnt:
+    
     }
-    atomicAdd(&reinterpret_cast<blake3_hasher*>(global_hasher)->hash_count, hash_count);
-}
+atomicAdd( &reinterpret_cast<blake3_hasher*>( global_hasher )->hash_count, hash_count );
 
 }
+
+}   /* inline_blake */
 
 #endif //ALEPHIUM_INLINED_BLAKE_H

@@ -13,6 +13,13 @@ void worker_stream_callback
     void               *data
     );
 
+/*--------------------------------------------------------------------
+ *
+ *  FUNCTION: start_worker_mining
+ *
+ *  DESCRIPTION:
+ *
+ *------------------------------------------------------------------*/
 
 void start_worker_mining
     (
@@ -26,10 +33,10 @@ TRY( cudaMemcpyAsync( hasher( worker, false ), hasher( worker, true ), hasher_le
 
 #ifdef SHOW_MINING_TIME
     cudaEvent_t startEvent, stopEvent;
-    TRY( cudaEventCreate(&startEvent) );
-    TRY( cudaEventCreate(&stopEvent) );
-    TRY( cudaEventRecord(startEvent, worker->stream) );
-#endif
+    TRY( cudaEventCreate( &startEvent ) );
+    TRY( cudaEventCreate( &stopEvent ) );
+    TRY( cudaEventRecord( startEvent, worker->stream ) );
+#endif  /* SHOW_MINING_TIME */
 
 // blake3_hasher_mine<<<worker->grid_size, worker->block_size, 0, worker->stream>>>(worker->device_hasher);
 MINER_IMPL( worker )<<<worker->grid_size, worker->block_size, 0, worker->stream>>>( worker->device_hasher.inline_hasher );
@@ -44,12 +51,12 @@ TRY( cudaStreamAddCallback( worker->stream, worker_stream_callback, worker, 0 ) 
 
 #ifdef SHOW_MINING_TIME
     float time;
-    TRY( cudaEventElapsedTime(&time, startEvent, stopEvent) );
-    TRY( cudaEventDestroy(&startEvent) );
-    TRY( cudaEventDestroy(&stopEvent) );
-    LOG(" === mining time: %f\n", time);
-#endif
+    TRY( cudaEventElapsedTime( &time, startEvent, stopEvent ) );
+    TRY( cudaEventDestroy( &startEvent ) );
+    TRY( cudaEventDestroy( &stopEvent ) );
+    LOG( " === mining time: %f\n", time );
+#endif  /* SHOW_MINING_TIME */
 
 }   /* start_worker_mining() */
 
-#endif // ALEPHIUM_MINING_H
+#endif /* ALEPHIUM_MINING_H */

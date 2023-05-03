@@ -206,10 +206,10 @@ void mine
     mining_worker_t    *worker
     )
 {
-time_point_t            start;
+//time_point_t            start;
 int32_t                 to_mine_index;
 
-start = Time::now();
+//start = Time::now();
 to_mine_index = next_chain_to_mine();
 
 if( to_mine_index == -1 )
@@ -220,7 +220,7 @@ if( to_mine_index == -1 )
     }
 else
     {
-    mining_counts[ to_mine_index ].fetch_add( mining_steps );
+    //mining_counts[ to_mine_index ].fetch_add( mining_steps );
     setup_template( worker, load_template( to_mine_index ) );
 
     start_worker_mining( worker );
@@ -313,6 +313,7 @@ return;
 
 }   /* after_mine() */
 
+
 /*--------------------------------------------------------------------
  *
  *  FUNCTION: worker_stream_callback
@@ -345,7 +346,7 @@ template_ptr = load_worker__template( worker );
 job = template_ptr->job;
 chain_index = job->from_group * group_nums + job->to_group;
 
-mining_counts[chain_index].fetch_sub( mining_steps );
+//mining_counts[chain_index].fetch_sub( mining_steps );
 mining_counts[chain_index].fetch_add( hasher_hash_count( worker, true ) );
 total_hashes.fetch_add( hasher_hash_count( worker, true ) );
 devices[ worker->device_id ].hashes.fetch_add( hasher_hash_count( worker, true ) );
