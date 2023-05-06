@@ -119,33 +119,94 @@ namespace inline_blake
 #define Z6E 7
 #define Z6F D
 
+// 0xF0 & 0xCC | 0xAA = immLut
+
 //INLINE __device__ uint32_t ROTR32( uint32_t w, uint32_t c )
 //{
 //    return ( w >> c ) | ( w << ( 32 - c ) );
 //}
 
-__device__ __forceinline__
-uint32_t ROTR32( uint32_t w, uint32_t c )
+//__device__ __forceinline__
+//uint32_t ROTR32( uint32_t w, uint32_t c )
+//{
+//uint32_t                result;
+//
+//asm volatile( "shf.r.clamp.b32 %0, %1, %1, %2;" : "=r"(result) : "r"(w), "r"(c) ); // (w << (32 - c) | ( w >> c )
+//
+//return( result );
+//
+//}   /* ROTR32() */
+
+
+
+INLINE __device__ uint32_t ROTR32_16( uint32_t w )
 {
-uint32_t                result;
+    return ( w >> 16 ) | ( w << 16 );
+    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 16;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( w );
+    //uint32_t result;
+    //asm( "shf.r.wrap.b32 %0, %1, %1, 16;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( result );
+}
 
-asm volatile( "shf.r.clamp.b32 %0, %1, %1, %2;" : "=r"(result) : "r"(w), "r"(c) ); // (w << (32 - c) | ( w >> c )
 
-return( result );
+INLINE __device__ uint32_t ROTR32_12( uint32_t w )
+{
+    return ( w >> 12 ) | ( w << 20 );
+    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 12;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( w );
+    //uint32_t result;
+    //asm( "shf.r.wrap.b32 %0, %1, %1, 12;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( result );
+}
 
-}   /* ROTR32() */
 
-#define G(a, b, c, d, x, y)    \
-    {                          \
-        a = a + b + x;         \
-        d = ROTR32(d ^ a, 16); \
-        c = c + d;             \
-        b = ROTR32(b ^ c, 12); \
-        a = a + b + y;         \
-        d = ROTR32(d ^ a, 8);  \
-        c = c + d;             \
-        b = ROTR32(b ^ c, 7);  \
+INLINE __device__ uint32_t ROTR32_8( uint32_t w )
+{
+    return ( w >> 8 ) | ( w << 24 );
+    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 8;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( w );
+    //uint32_t result;
+    //asm( "shf.r.wrap.b32 %0, %1, %1, 8;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( result );
+}
+
+
+INLINE __device__ uint32_t ROTR32_7( uint32_t w )
+{
+    return ( w >> 7 ) | ( w << 25 );
+    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 7;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( w );
+    //uint32_t result;
+    //asm( "shf.r.wrap.b32 %0, %1, %1, 7;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
+    //return( result );
+}
+
+
+
+#define G(a, b, c, d, x, y)     \
+    {                           \
+        a = a + b + x;          \
+        d = ROTR32_16( d ^ a ); \
+        c = c + d;              \
+        b = ROTR32_12( b ^ c ); \
+        a = a + b + y;          \
+        d = ROTR32_8( d ^ a );  \
+        c = c + d;              \
+        b = ROTR32_7( b ^ c );  \
     }
+
+//#define G(a, b, c, d, x, y)    \
+//    {                          \
+//        a = a + b + x;         \
+//        d = ROTR32(d ^ a, 16); \
+//        c = c + d;             \
+//        b = ROTR32(b ^ c, 12); \
+//        a = a + b + y;         \
+//        d = ROTR32(d ^ a, 8);  \
+//        c = c + d;             \
+//        b = ROTR32(b ^ c, 7);  \
+//    }
     //else                       \
     //    ((void)0)
 
@@ -355,9 +416,7 @@ typedef struct
         ((void)0)
 
 #define CHECK_POW           \
-    if (1)                  \
     {                       \
-        uint32_t m0, m1;    \
         CHECK_TARGET(0, 0); \
         CHECK_TARGET(0, 1); \
         CHECK_TARGET(0, 2); \
@@ -370,9 +429,8 @@ typedef struct
         CHECK_TARGET(2, 1); \
         CHECK_TARGET(2, 2); \
         CHECK_TARGET(2, 3); \
-    }                       \
-    else                    \
-        ((void)0)
+    }
+
 
 /*--------------------------------------------------------------------
  *
@@ -398,6 +456,7 @@ uint32_t M0, M1, M2, M3, M4, M5, M6, M7, M8, M9, MA, MB, MC, MD, ME, MF; // mess
 uint32_t V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF; // internal state
 uint32_t H0, H1, H2, H3, H4, H5, H6, H7;                                 // chain value
 uint32_t BLEN, FLAGS;                                                    // block len, flags
+uint32_t m0, m1;
 
 int stride = blockDim.x * gridDim.x;
 int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -412,7 +471,7 @@ while( hash_count < mining_steps )
     DOUBLE_HASH;
     CHECK_POW;
 
-    cnt:
+    cnt:;
     
     }
 atomicAdd( &reinterpret_cast<blake3_hasher*>( global_hasher )->hash_count, hash_count );

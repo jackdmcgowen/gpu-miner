@@ -35,6 +35,10 @@
                               MACROS
 --------------------------------------------------------------------*/
 
+#ifndef MAX
+    #define MAX( a, b ) ( ( ( a ) > ( b ) ) ? ( a ) : ( b ) )
+#endif
+
 #ifndef MINER_VERSION
     #define MINER_VERSION "unknown"
 #endif  /* MINER_VERSION */
@@ -468,30 +472,60 @@ if( current_time > start_time )
     {
     duration_t          elapsed;
     int                 i;
+    device_info        *d;
+    float               total_mh;
+    float               total_gh;
+    uint64_t            total_h;
 
     elapsed = current_time - start_time;
 
     for( i = 0; i < gpu_count; ++i )
         {
         float           mh;
+        float           gh;
+        uint64_t        h;
+        
+        d = devices + i;
 
-        NVML_CHECK( nvmlDeviceGetTemperature( devices[i].hnvml, NVML_TEMPERATURE_GPU, &devices[i].ctemp ) );
-        NVML_CHECK( nvmlDeviceGetPowerUsage( devices[i].hnvml, &devices[i].watts ) );
+        NVML_CHECK( nvmlDeviceGetTemperature( d->hnvml, NVML_TEMPERATURE_GPU, &d->ctemp ) );
+        NVML_CHECK( nvmlDeviceGetPowerUsage( d->hnvml, &d->watts ) );
 
         if( devices[ i ].fan_support )
             {
-            NVML_CHECK( nvmlDeviceGetFanSpeed( devices[i].hnvml, &devices[i].fan ) );
+            NVML_CHECK( nvmlDeviceGetFanSpeed( d->hnvml, &d->fan ) );
             }
 
-        devices[i].watts /= 1000; /* convert milliwatts to watts */
+        h = d->hashes.load();
+        mh = h / elapsed.count() / 1000000;
+        gh = h / elapsed.count() / 1000000000;
 
-        mh = devices[i].hashes.load() / elapsed.count() / 1000000;
-        devices[i].eff = mh / devices[i].watts;
+        d->watts /= 1000; /* convert milliwatts to watts */
+        d->eff = mh / d->watts;
 
-        LOG( "GPU #%d: %s - %.0f MH/s ", i, devices[i].name, mh );
-        LOG_WITHOUT_TS( "[ T:%dC, P:%dW, F:%d%%, E:%.1fMH/W ]\n", devices[i].ctemp, devices[i].watts, devices[i].fan, devices[i].eff );
+        LOG( "GPU #%d: %s - ", i, d->name );
+        if( mh > 1000 )
+            {
+            LOG_WITHOUT_TS( "%.2f GH/s ", gh );
+            }
+        else
+            {
+            LOG_WITHOUT_TS( "%.0f MH/s ", mh );
+            }
+        LOG_WITHOUT_TS( "[ T:%2dC, P:%3dW, F:%2d%%, E:%.1fMH/W ]\n", d->ctemp, d->watts, d->fan, d->eff );
         }
-    LOG( "Hashrate: %.0f MH/s ", total_hashes.load() / elapsed.count() / 1000000 );
+
+    total_h = total_hashes.load();
+    total_mh = total_h / elapsed.count() / 1000000;
+    total_gh = total_h / elapsed.count() / 1000000000;
+
+    if( total_mh > 1000 )
+        {
+        LOG( "Hashrate: %.2f GH/s ", total_gh );
+        }
+    else
+        {
+        LOG( "Hashrate: %.0f MH/s ", total_mh );
+        }
     LOG_WITHOUT_TS( "Solutions: %u\n", found_solutions.load( std::memory_order_relaxed ) );
     }
 
@@ -765,6 +799,10 @@ int                     gpu_count;
 int                     command;
 uv_timer_t              log_timer;
 int                     i;
+device_info            *d;
+int                     max_name_len;
+int                     name_len;
+int                     name_pad;
 #ifdef _WIN32
     WSADATA             wsa;
     int                 rc;
@@ -774,6 +812,10 @@ int                     i;
 Initialize
 --------------------------------------------------------------------*/
 setbuf( stdout, NULL );
+name_len = 0;
+max_name_len = 0;
+name_pad = 0;
+gpu_count = 0;
 
 #ifdef _WIN32
     // current winsocket version is 2.2
@@ -787,26 +829,48 @@ setbuf( stdout, NULL );
 
 NVML_CHECK( nvmlInit() );
 
+/*--------------------------------------------------------------------
+Initialize GPU devices
+--------------------------------------------------------------------*/
 LOG( "Running gpu-miner version : %s\n", MINER_VERSION );
-
-gpu_count = 0;
 cudaGetDeviceCount( &gpu_count );
 LOG( "GPU count: %d\n", gpu_count );
 memset( &devices, 0, sizeof(device_info) * max_gpu_num );
 for( i = 0; i < gpu_count; ++i )
     {
-    cudaDeviceProp              prop;
+    d = devices + i;
 
-    cudaGetDeviceProperties( &prop, i );
-    strcpy_s( devices[i].name, 64, prop.name );
+    NVML_CHECK( nvmlDeviceGetHandleByIndex( i, &d->hnvml ) );
+    d->fan_support = NVML_SUPPORTED( nvmlDeviceGetFanSpeed( d->hnvml, &d->fan ) );
+    d->use = true;
 
-    NVML_CHECK( nvmlDeviceGetHandleByIndex( i, &devices[i].hnvml ) );
-    devices[i].fan_support = NVML_SUPPORTED( nvmlDeviceGetFanSpeed( devices[i].hnvml, &devices[i].fan ) );
-    //NVML_CHECK( nvmlDeviceGetClock( devices[i].hnvml, NVML_CLOCK_GRAPHICS, NVML_CLOCK_ID_CURRENT, &devices[i].cclock ) );
-    //NVML_CHECK( nvmlDeviceGetClock( devices[i].hnvml, NVML_CLOCK_MEM,      NVML_CLOCK_ID_CURRENT, &devices[i].mclock ) );
-    devices[i].use = true;
+    NVML_CHECK( nvmlDeviceGetName( d->hnvml, d->name, 64 ) );
+    name_len = strlen( d->name );
+    max_name_len = MAX( max_name_len, name_len );
 
-    LOG("GPU #%d - %s - #%d cores \n", i, devices[i].name, get_device_cores( i ) );
+    //nvmlDeviceSetGpuLockedClocks( d->hnvml, d->cclock, d->cclock );
+    //nvmlDeviceSetGpcClkVfOffset( d->hnvml, dev)
+    //nvmlDeviceSetMemoryLockedClocks
+    //nvmlDeviceSetMemClkVfOffset()
+    //nvmlDeviceSetFanSpeed_v2
+
+    }
+
+/*--------------------------------------------------------------------
+Add device name padding for alignment
+--------------------------------------------------------------------*/
+for( i = 0; i < gpu_count; ++i )
+    {
+    d = devices + i;
+
+    name_len = strlen( d->name );
+    name_pad = max_name_len - name_len;
+    if( name_pad )
+        {
+        memset( d->name + name_len, ' ', name_pad );
+        }
+
+    LOG("GPU #%d - %s - #%d cores \n", i, d->name, get_device_cores( i ) );
     }
 
 strcpy( broker_ip, "127.0.0.1" );
