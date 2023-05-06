@@ -236,7 +236,7 @@ void mining_worker_init
 self->id = id;
 self->device_id = device_id;
 cudaSetDevice( device_id );
-TRY( cudaStreamCreate( &(self->stream) ) );
+TRY( cudaStreamCreate( &self->stream ) );
 config_cuda( device_id, &self->grid_size, &self->block_size, &self->is_inline_miner );
 LOG( "Worker %d: device id %d, grid size %d, block size %d. Using %s kernel\n", self->id, self->device_id,
         self->grid_size, self->block_size, self->is_inline_miner ? "inline" : "reference" );
@@ -263,7 +263,7 @@ bool load_worker__found_good_hash
     mining_worker_t    *worker
     )
 {
-return atomic_load( &( worker->found_good_hash ) );
+return atomic_load( &worker->found_good_hash );
 
 }   /* load_worker__found_good_hash() */
 
@@ -282,7 +282,7 @@ void store_worker_found_good_hash
     bool                value
     )
 {
-atomic_store( &( worker->found_good_hash ), value );
+atomic_store( &worker->found_good_hash, value );
 
 }   /* store_worker_found_good_hash() */
 
@@ -300,7 +300,7 @@ mining_template_t *load_worker__template
     mining_worker_t    *worker
     )
 {
-return( atomic_load( &( worker->template_ptr ) ) );
+return( atomic_load( &worker->template_ptr ) );
 
 }   /* load_worker__template() */
 
@@ -319,7 +319,7 @@ void store_worker__template
     mining_template_t  *template_ptr
     )
 {
-atomic_store( &( worker->template_ptr ), template_ptr );
+atomic_store( &worker->template_ptr, template_ptr );
 
 }   /* store_worker__template() */
 

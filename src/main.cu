@@ -509,7 +509,7 @@ if( current_time > start_time )
             }
         else
             {
-            LOG_WITHOUT_TS( "%.0f MH/s ", mh );
+            LOG_WITHOUT_TS( "%4.0f MH/s ", mh );
             }
         LOG_WITHOUT_TS( "[ T:%2dC, P:%3dW, F:%2d%%, E:%.1fMH/W ]\n", d->ctemp, d->watts, d->fan, d->eff );
         }

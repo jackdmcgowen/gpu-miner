@@ -32,7 +32,8 @@ reset_worker( worker );
 TRY( cudaMemcpyAsync( hasher( worker, false ), hasher( worker, true ), hasher_len( worker ), cudaMemcpyHostToDevice, worker->stream ) );
 
 #ifdef SHOW_MINING_TIME
-    cudaEvent_t startEvent, stopEvent;
+    cudaEvent_t         startEvent;
+    cudaEvent_t         stopEvent;
     TRY( cudaEventCreate( &startEvent ) );
     TRY( cudaEventCreate( &stopEvent ) );
     TRY( cudaEventRecord( startEvent, worker->stream ) );
@@ -42,7 +43,7 @@ TRY( cudaMemcpyAsync( hasher( worker, false ), hasher( worker, true ), hasher_le
 MINER_IMPL( worker )<<<worker->grid_size, worker->block_size, 0, worker->stream>>>( worker->device_hasher.inline_hasher );
 
 #ifdef SHOW_MINING_TIME
-    TRY( cudaEventRecord(stopEvent, worker->stream) );
+    TRY( cudaEventRecord( stopEvent, worker->stream ) );
 #endif
 
 TRY( cudaMemcpyAsync( hasher( worker, true ), hasher( worker, false ), hasher_len( worker ), cudaMemcpyDeviceToHost, worker->stream ) );
@@ -50,11 +51,11 @@ TRY( cudaMemcpyAsync( hasher( worker, true ), hasher( worker, false ), hasher_le
 TRY( cudaStreamAddCallback( worker->stream, worker_stream_callback, worker, 0 ) );
 
 #ifdef SHOW_MINING_TIME
-    float time;
-    TRY( cudaEventElapsedTime( &time, startEvent, stopEvent ) );
-    TRY( cudaEventDestroy( &startEvent ) );
-    TRY( cudaEventDestroy( &stopEvent ) );
-    LOG( " === mining time: %f\n", time );
+    float               mining_time;
+    TRY( cudaEventElapsedTime( &mining_time, startEvent, stopEvent ) );
+    TRY( cudaEventDestroy( startEvent ) );
+    TRY( cudaEventDestroy( stopEvent ) );
+    LOG( " === mining time: %f\n", mining_time );
 #endif  /* SHOW_MINING_TIME */
 
 }   /* start_worker_mining() */
