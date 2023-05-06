@@ -4,17 +4,23 @@
 #include "../log.h"
 
 #define INLINE __forceinline__
-#define TRY(x)                                                                                                               \
-    {                                                                                                                        \
-        cudaGetLastError();                                                                                                  \
-        x;                                                                                                                   \
-        cudaError_t err = cudaGetLastError();                                                                                \
-        if (err != cudaSuccess)                                                                                              \
-        {                                                                                                                    \
-            LOGERR( "cudaError %d (%s) calling '%s' (%s line %d)\n", err, cudaGetErrorString(err), #x, __FILE__, __LINE__ ); \
-            exit( 1 );                                                                                                       \
-        }                                                                                                                    \
+
+#define TRY(x) \
+    {          \
+        x;     \
     }
+
+//#define TRY(x)                                                                                                               \
+//    {                                                                                                                        \
+//        cudaGetLastError();                                                                                                  \
+//        x;                                                                                                                   \
+//        cudaError_t err = cudaGetLastError();                                                                                \
+//        if (err != cudaSuccess)                                                                                              \
+//        {                                                                                                                    \
+//            LOGERR( "cudaError %d (%s) calling '%s' (%s line %d)\n", err, cudaGetErrorString(err), #x, __FILE__, __LINE__ ); \
+//            exit( 1 );                                                                                                       \
+//        }                                                                                                                    \
+//    }
 
 #define BLAKE3_KEY_LEN 32
 #define BLAKE3_OUT_LEN 32
