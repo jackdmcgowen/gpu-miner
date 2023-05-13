@@ -65,14 +65,33 @@ typedef std::chrono::time_point<std::chrono::high_resolution_clock> time_point_t
 
 typedef struct
     {
+    int                 cclock;     /* lock core clock              */
+    int                 mclock;     /* lock mem clock               */
+    int                 coff;       /* core offset                  */
+    int                 moff;       /* mem offset ( unused )        */
+    } clock_info;
+
+typedef struct
+    {
+    bool                fans;
+    bool                ctemp;
+    bool                mtemp;
+    bool                cclock;
+    bool                mclock;
+    bool                coff;
+    bool                moff;
+    } device_support;
+
+
+typedef struct
+    {
     char                name[ 64 ];
     bool                use;
     uint32_t            ctemp;
     uint32_t            mtemp;
-    uint32_t            cclock;
-    uint32_t            mclock;
+    clock_info          clocks;        
     uint32_t            fan;
-    bool                fan_support;
+    device_support      support;
     uint32_t            watts;
     float               eff;
     std::atomic<uint64_t>   
@@ -337,6 +356,7 @@ mining_worker_t        *worker;
 mining_template_t      *template_ptr;
 job_t                  *job;
 uint32_t                chain_index;
+uint32_t                hash_count;
 
 worker = (mining_worker_t *)data;
 if( hasher_found_good_hash( worker, true ) )
@@ -350,13 +370,16 @@ template_ptr = load_worker__template( worker );
 job = template_ptr->job;
 chain_index = job->from_group * group_nums + job->to_group;
 
+hash_count = hasher_hash_count( worker, true );
+
 //mining_counts[chain_index].fetch_sub( mining_steps );
-mining_counts[chain_index].fetch_add( hasher_hash_count( worker, true ) );
-total_hashes.fetch_add( hasher_hash_count( worker, true ) );
-devices[ worker->device_id ].hashes.fetch_add( hasher_hash_count( worker, true ) );
+total_hashes.fetch_add( hash_count );
+mining_counts[chain_index].fetch_add( hash_count );
+devices[ worker->device_id ].hashes.fetch_add( hash_count );
+
 free_template( template_ptr );
 worker->async.data = worker;
-uv_async_send( &(worker->async) );
+uv_async_send( &worker->async );
 
 }   /* worker_stream_callback() */
 
@@ -478,6 +501,13 @@ if( current_time > start_time )
     uint64_t            total_h;
 
     elapsed = current_time - start_time;
+    //start_time = current_time;
+
+    total_h = total_hashes.load();
+    //total_hashes = 0;
+
+    total_mh = total_h / elapsed.count() / 1000000;
+    total_gh = total_h / elapsed.count() / 1000000000;
 
     for( i = 0; i < gpu_count; ++i )
         {
@@ -490,7 +520,7 @@ if( current_time > start_time )
         NVML_CHECK( nvmlDeviceGetTemperature( d->hnvml, NVML_TEMPERATURE_GPU, &d->ctemp ) );
         NVML_CHECK( nvmlDeviceGetPowerUsage( d->hnvml, &d->watts ) );
 
-        if( devices[ i ].fan_support )
+        if( devices[ i ].support.fans )
             {
             NVML_CHECK( nvmlDeviceGetFanSpeed( d->hnvml, &d->fan ) );
             }
@@ -511,12 +541,8 @@ if( current_time > start_time )
             {
             LOG_WITHOUT_TS( "%4.0f MH/s ", mh );
             }
-        LOG_WITHOUT_TS( "[ T:%2dC, P:%3dW, F:%2d%%, E:%.1fMH/W ]\n", d->ctemp, d->watts, d->fan, d->eff );
+        LOG_WITHOUT_TS( "[ T:%2dC, P:%3dW, F:%2d%%, E:%2.1fMH/W ]\n", d->ctemp, d->watts, d->fan, d->eff );
         }
-
-    total_h = total_hashes.load();
-    total_mh = total_h / elapsed.count() / 1000000;
-    total_gh = total_h / elapsed.count() / 1000000000;
 
     if( total_mh > 1000 )
         {
@@ -803,6 +829,8 @@ device_info            *d;
 int                     max_name_len;
 int                     name_len;
 int                     name_pad;
+clock_info              oc;
+
 #ifdef _WIN32
     WSADATA             wsa;
     int                 rc;
@@ -829,6 +857,9 @@ gpu_count = 0;
 
 NVML_CHECK( nvmlInit() );
 
+nvmlPciInfo_t           s_pciInfo[ max_gpu_num ];
+nvmlDevice_t            s_nvmlDevice[ max_gpu_num ];
+
 /*--------------------------------------------------------------------
 Initialize GPU devices
 --------------------------------------------------------------------*/
@@ -836,46 +867,11 @@ LOG( "Running gpu-miner version : %s\n", MINER_VERSION );
 cudaGetDeviceCount( &gpu_count );
 LOG( "GPU count: %d\n", gpu_count );
 memset( &devices, 0, sizeof(device_info) * max_gpu_num );
-for( i = 0; i < gpu_count; ++i )
-    {
-    d = devices + i;
-
-    NVML_CHECK( nvmlDeviceGetHandleByIndex( i, &d->hnvml ) );
-    d->fan_support = NVML_SUPPORTED( nvmlDeviceGetFanSpeed( d->hnvml, &d->fan ) );
-    d->use = true;
-
-    NVML_CHECK( nvmlDeviceGetName( d->hnvml, d->name, 64 ) );
-    name_len = strlen( d->name );
-    max_name_len = MAX( max_name_len, name_len );
-
-    //nvmlDeviceSetGpuLockedClocks( d->hnvml, d->cclock, d->cclock );
-    //nvmlDeviceSetGpcClkVfOffset( d->hnvml, dev)
-    //nvmlDeviceSetMemoryLockedClocks
-    //nvmlDeviceSetMemClkVfOffset()
-    //nvmlDeviceSetFanSpeed_v2
-
-    }
-
-/*--------------------------------------------------------------------
-Add device name padding for alignment
---------------------------------------------------------------------*/
-for( i = 0; i < gpu_count; ++i )
-    {
-    d = devices + i;
-
-    name_len = strlen( d->name );
-    name_pad = max_name_len - name_len;
-    if( name_pad )
-        {
-        memset( d->name + name_len, ' ', name_pad );
-        }
-
-    LOG("GPU #%d - %s - #%d cores \n", i, d->name, get_device_cores( i ) );
-    }
+memset( &oc, 0, sizeof( clock_info ) );
 
 strcpy( broker_ip, "127.0.0.1" );
 
-while( ( command = getopt(argc, argv, "p:g:a:" ) ) != -1 )
+while( ( command = getopt( argc, argv, "p:g:a:c:m:o:" ) ) != -1 )
     {
     switch( command )
         {
@@ -892,6 +888,18 @@ while( ( command = getopt(argc, argv, "p:g:a:" ) ) != -1 )
                 {
                 hostname_to_ip( broker_ip, optarg );
                 }
+            break;
+
+        case 'c':
+            oc.cclock = atoi( optarg );
+            break;
+
+        case 'm':
+            oc.mclock = atoi( optarg );
+            break;
+
+        case 'o':
+            oc.coff = atoi( optarg );
             break;
 
         case 'g':
@@ -920,6 +928,113 @@ while( ( command = getopt(argc, argv, "p:g:a:" ) ) != -1 )
         }
     }
 
+
+for( i = 0; i < gpu_count; ++i )
+    {
+    nvmlDeviceGetHandleByIndex( i, &s_nvmlDevice[i] );
+    nvmlDeviceGetPciInfo( s_nvmlDevice[i], &s_pciInfo[i] );
+    }
+
+for( i = 0; i < gpu_count; ++i )
+    {
+    cudaDeviceProp      prop;
+    TRY( cudaGetDeviceProperties( &prop, i ) );
+    d = devices + i;
+
+    for( int j = 0; j < gpu_count; ++j )
+        {
+        if( prop.pciBusID == s_pciInfo[ j ].bus )
+            {
+            d->hnvml = s_nvmlDevice[j];
+            break;
+            }
+        }  
+
+    NVML_CHECK( nvmlDeviceGetName( d->hnvml, d->name, 64 ) );
+    name_len = strlen( d->name );
+    max_name_len = MAX( max_name_len, name_len );
+    }
+
+/*--------------------------------------------------------------------
+Add device name padding for alignment
+--------------------------------------------------------------------*/
+for( i = 0; i < gpu_count; ++i )
+    {
+    d = devices + i;
+
+    name_len = strlen( d->name );
+    name_pad = max_name_len - name_len;
+    if( name_pad )
+        {
+        memset( d->name + name_len, ' ', name_pad );
+        }
+
+    LOG("GPU #%d - %s - #%d cores \n", i, d->name, get_device_cores( i ) );
+
+    memcpy( &d->clocks, &oc, sizeof( clock_info ) );
+    d->support.fans = NVML_SUPPORTED( nvmlDeviceGetFanSpeed( d->hnvml, &d->fan ) );
+
+
+    if( d->clocks.cclock > 0 )
+        {
+        d->support.cclock = NVML_SUPPORTED( nvmlDeviceSetGpuLockedClocks( d->hnvml, d->clocks.cclock, d->clocks.cclock ) );
+        if( d->support.cclock )
+            {
+            LOG( "Locked Core Clock: %d MHz, Core Offset: %d MHz \n", d->clocks.cclock, d->clocks.coff );
+            }
+        else
+            {
+            LOG( "Overclocking Unsupported!\n" );
+            }
+        }
+
+    if( d->clocks.mclock > 0 )
+        {
+        d->support.mclock = NVML_SUPPORTED( nvmlDeviceSetMemoryLockedClocks( d->hnvml, d->clocks.mclock, d->clocks.mclock ) );
+        if( d->support.mclock )
+            {
+            LOG( "Locked Mem Clock: %d MHz \n", d->clocks.mclock );
+            }
+        else
+            {
+            LOG( "Overclocking Unsupported!\n" );
+            }
+        }
+
+    //nvmlPstates_t pstates[NVML_MAX_GPU_PERF_PSTATES];
+
+    //memset( pstates, 0x00, sizeof(nvmlPstates_t) * NVML_MAX_GPU_PERF_PSTATES );
+    //NVML_CHECK( nvmlDeviceGetSupportedPerformanceStates( d->hnvml, pstates, NVML_MAX_GPU_PERF_PSTATES ) );
+    //for( int j = 0; j < NVML_MAX_GPU_PERF_PSTATES; ++j )
+    //    {
+    //    unsigned int min;
+    //    unsigned int max;
+    //    NVML_CHECK( nvmlDeviceGetMinMaxClockOfPState( d->hnvml, NVML_CLOCK_SM, pstates[j], &min, &max ) );
+    //    LOG( "PSTATE[%d] = %d, min,max (%d, %d )\n", j, pstates[j], min, max );
+    //    }
+
+    //if( d->clocks.coff )
+    //    {
+    //    #ifndef _WIN32
+    //        NVML_CHECK( nvmlDeviceSetPersistenceMode( d->hnvml, NVML_FEATURE_ENABLED ) );
+    //    #endif
+
+    //    NVML_CHECK( nvmlDeviceGetGpcClkVfOffset( d->hnvml, &d->clocks.coff ) );
+    //    //d->support.coff = NVML_SUPPORTED( nvmlDeviceSetGpcClkVfOffset( d->hnvml, d->clocks.coff ) );
+    //    if( d->support.coff )
+    //        {
+    //        LOG( "Set Core Clock Offset: %d MHz \n", d->clocks.coff );
+    //        }
+    //    else
+    //        {
+    //        LOG( "Overclocking Unsupported!\n" );
+    //        }
+    //    }
+    
+    d->use = true;
+    }
+
+
 LOG( "will connect to broker @%s:%d\n", broker_ip, port );
 
 #ifdef __linux__
@@ -943,6 +1058,16 @@ uv_timer_init( loop, &log_timer );
 uv_timer_start( &log_timer, log_hashrate, 5000, 20000 );
 
 uv_run( loop, UV_RUN_DEFAULT );
+
+
+for( i = 0; i < gpu_count; ++i )
+    {
+    d = devices + i;
+
+    NVML_CHECK( nvmlDeviceResetApplicationsClocks( d->hnvml ) );
+    NVML_CHECK( nvmlDeviceResetGpuLockedClocks( d->hnvml ) );
+    NVML_CHECK( nvmlDeviceResetMemoryLockedClocks( d->hnvml ) );
+    }
 
 NVML_CHECK( nvmlShutdown() );
 

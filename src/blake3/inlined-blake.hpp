@@ -138,48 +138,27 @@ namespace inline_blake
 //}   /* ROTR32() */
 
 
-
 INLINE __device__ uint32_t ROTR32_16( uint32_t w )
 {
     return ( w >> 16 ) | ( w << 16 );
-    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 16;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( w );
-    //uint32_t result;
-    //asm( "shf.r.wrap.b32 %0, %1, %1, 16;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( result );
 }
 
 
 INLINE __device__ uint32_t ROTR32_12( uint32_t w )
 {
     return ( w >> 12 ) | ( w << 20 );
-    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 12;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( w );
-    //uint32_t result;
-    //asm( "shf.r.wrap.b32 %0, %1, %1, 12;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( result );
 }
 
 
 INLINE __device__ uint32_t ROTR32_8( uint32_t w )
 {
     return ( w >> 8 ) | ( w << 24 );
-    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 8;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( w );
-    //uint32_t result;
-    //asm( "shf.r.wrap.b32 %0, %1, %1, 8;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( result );
 }
 
 
 INLINE __device__ uint32_t ROTR32_7( uint32_t w )
 {
     return ( w >> 7 ) | ( w << 25 );
-    //asm volatile( "shf.r.wrap.b32 %0, %0, %0, 7;" : "+r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( w );
-    //uint32_t result;
-    //asm( "shf.r.wrap.b32 %0, %1, %1, 7;" : "=r"(result) : "r"(w) ); // (w << (32 - c) | ( w >> c )
-    //return( result );
 }
 
 
